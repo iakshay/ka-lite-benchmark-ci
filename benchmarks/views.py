@@ -1,8 +1,13 @@
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.core.urlresolvers import reverse
+from django.shortcuts import render, redirect
+from django.http import HttpResponse, HttpResponseRedirect
+from django.conf import settings
 from .models import BenchmarkBuild
+from oauthlib.oauth2 import WebApplicationClient
 import json
 import os
+import requests
 import github
 
 TESTS_WAITING = 0
@@ -10,13 +15,25 @@ TESTS_SUCCESS = 1
 TESTS_FAIL = 2
 BENCHMARK_SUCCESS = 3
 
-GITHUB_CLIENT_ID = os.environ['GITHUB_CLIENT_ID']
-GITHUB_CLIENT_SECRET = os.environ['GITHUB_CLIENT_SECRET']
+REQUEST_TOKEN_URL = 'https://github.com/login/oauth/access_token'
+AUTHORIZATION_URL = 'https://github.com/login/oauth/authorize'
 
-gh = github.Github(client_id=GITHUB_CLIENT_ID, client_secret=GITHUB_CLIENT_SECRET)
+
+gh = github.Github(client_id=settings.GITHUB_CLIENT_ID, client_secret=settings.GITHUB_CLIENT_SECRET)
 
 def index(request):
-    return HttpResponse("Hello, world. You're at the build index. build# %s" % os.environ['GITHUB_CLIENT_ID'])
+    client = WebApplicationClient(settings.GITHUB_CLIENT_ID)
+
+    if not request.GET.has_key('code'):
+        uri = client.prepare_request_uri(AUTHORIZATION_URL, redirect_uri=reverse('index'),
+                                   scope=['repo:status'])
+        context = {'uri': uri}
+    else:
+        code = request.GET['code']
+        body = client.prepare_request_body(code=code)
+        response = requests.post(REQUEST_TOKEN_URL, body)
+        context = {'response': response}
+    return render(request, 'benchmarks/index.html', context)
 
 def get_status_msg(build):
     return "foo"
