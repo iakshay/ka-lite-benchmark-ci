@@ -3,12 +3,13 @@ from django.core.urlresolvers import reverse
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect
 from django.conf import settings
-from .models import BenchmarkBuild
+from .models import BenchmarkBuild, GithubToken
 from oauthlib.oauth2 import WebApplicationClient
+from oauthlib.common import extract_params
+from github import Github
 import json
 import os
 import requests
-import github
 
 TESTS_WAITING = 0
 TESTS_SUCCESS = 1
@@ -19,34 +20,41 @@ REQUEST_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 AUTHORIZATION_URL = 'https://github.com/login/oauth/authorize'
 
 
-gh = github.Github(client_id=settings.GITHUB_CLIENT_ID, client_secret=settings.GITHUB_CLIENT_SECRET)
-
 def index(request):
     client = WebApplicationClient(settings.GITHUB_CLIENT_ID)
 
     if not request.GET.has_key('code'):
         uri = client.prepare_request_uri(AUTHORIZATION_URL, redirect_uri=request.build_absolute_uri(reverse('index')),
-                                   scope=['repo:status'])
+                                   scope=['repo'])
         context = {'uri': uri}
     else:
         code = request.GET['code']
         body = client.prepare_request_body(code=code)
         response = requests.post(REQUEST_TOKEN_URL, body)
-        context = {'response': response}
+        params = extract_params(response.text)
+        access_token = params[0][1]
+        scope = params[1][1]
+        owner = Github(access_token).get_user()
+        token = GithubToken(owner=owner.login, access_token=access_token)
+        token.save()
+        context = {'owner': owner.name}
     return render(request, 'benchmarks/index.html', context)
 
-def get_status_msg(build):
-    return "foo"
-
-
 def update_build_status(build):
-    user, repo = build.repo.split('/')
-    commit = gh.get_user(user).get_repo(repo).get_commit(build.sha)
-    status_msg = get_status_msg("foo")
-    commit.create_status(status_msg)
+    owner, repo = build.repo.split('/')
+    try:
+        token_user = GithubToken.objects.get(owner=owner)
+    except DoesNotExist:
+        return HttpResponse("No permissions for owner - {}", owner)
+
+    commit = Github(token_user.access_token).get_user().get_repo(repo).get_commit(build.sha)
+    commit.create_status(build.github_status(), description=build.pretty_status(), target_url=build.url(),
+                         context=settings.GITHUB_CI_CONTEXT)
 
 
 def handle_status(payload):
+    # todo - check if this is circleci or travis
+    # ci/circleci
     try:
         build = BenchmarkBuild.objects.get(sha=payload['sha'], repo=payload['name'])
     except DoesNotExist:
@@ -71,9 +79,11 @@ def handle_pull_request(payload):
         build = BenchmarkBuild(sha=sha, repo=repo, status=TESTS_WAITING)
         build.save()
 
+    update_build_status(build)
+
 def github_hook(request):
     """
-        POST Hook when PR is updated
+        POST Hook when PR (open, synchronize) or its status is updated
     """
     if request.method != 'POST':
         return HttpResponse('Invalid request')
@@ -92,7 +102,7 @@ def github_hook(request):
 
 def benchmark_hook(request):
     """
-        POST Hook with benchmark results
+        POST Hook for benchmark results
     """
     if request.method != 'POST':
         return HttpResponse('Invalid request')

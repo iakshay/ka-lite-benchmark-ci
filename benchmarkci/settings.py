@@ -77,8 +77,7 @@ WSGI_APPLICATION = 'benchmarkci.wsgi.application'
 # Parse database configuration from $DATABASE_URL
 
 DATABASES = {}
-
-DATABASES['default'] = dj_database_url.config(default="postgres://localhost:5432/kalite_benchmark_ci")
+DATABASES['default'] = dj_database_url.config()
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.8/topics/i18n/
@@ -106,4 +105,5 @@ STATICFILES_DIRS = (
 
 GITHUB_CLIENT_ID = os.environ['GITHUB_CLIENT_ID']
 GITHUB_CLIENT_SECRET = os.environ['GITHUB_CLIENT_SECRET']
+GITHUB_CI_CONTEXT = 'benchmark-ci'
 
