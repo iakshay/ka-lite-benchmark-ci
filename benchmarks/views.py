@@ -25,7 +25,7 @@ def index(request):
     client = WebApplicationClient(settings.GITHUB_CLIENT_ID)
 
     if not request.GET.has_key('code'):
-        uri = client.prepare_request_uri(AUTHORIZATION_URL, redirect_uri=reverse('index'),
+        uri = client.prepare_request_uri(AUTHORIZATION_URL, redirect_uri=request.build_absolute_uri(reverse('index')),
                                    scope=['repo:status'])
         context = {'uri': uri}
     else:
