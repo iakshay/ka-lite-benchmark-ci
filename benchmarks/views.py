@@ -37,7 +37,7 @@ def index(request):
         context = {'owner': owner.name}
     return render(request, 'benchmarks/index.html', context)
 
-def update_build_status(build):
+def update_build_status(request, build):
     try:
         token_user = GithubToken.objects.get(owner=build.owner_login)
     except DoesNotExist:
@@ -45,11 +45,12 @@ def update_build_status(build):
 
     commit = Github(token_user.access_token).get_user().get_repo(build.pr_repo).get_commit(build.pr_sha)
     status, status_msg = build.pretty_status()
-    commit.create_status(status, description=status_msg, target_url=build.url(),
+    commit.create_status(status, description=status_msg, target_url=request.build_absolute_uri(build.url()),
                          context=settings.GITHUB_CI_CONTEXT)
 
 
-def handle_status(payload):
+def handle_status(request):
+    payload = json.loads(request.body)
     if payload['ci_status'] == settings.GITHUB_CI_CONTEXT:
         return
 
@@ -72,10 +73,11 @@ def handle_status(payload):
     build.ci_status = payload['state']
 
     build.save()
-    update_build_status(build)
+    update_build_status(request, build)
 
 
-def handle_pull_request(payload):
+def handle_pull_request(request):
+    payload = json.loads(request.body)
     action = payload['action']
 
     # create new build object
@@ -102,7 +104,7 @@ def handle_pull_request(payload):
 
         build = BenchmarkBuild(**kwargs)
         build.save()
-        update_build_status(build)
+        update_build_status(request, build)
     elif action == 'close':
         # todo - update pr_status of all builds
         pass
@@ -120,9 +122,9 @@ def github_hook(request):
     payload = json.loads(request.body)
 
     if event == 'pull_request':
-        handle_pull_request(payload)
+        handle_pull_request(request)
     elif event == 'status':
-        handle_status(payload)
+        handle_status(request)
 
     return HttpResponse("Github hook")
 
@@ -149,7 +151,7 @@ def benchmark_hook(request):
 
     build.save()
 
-    update_build_status(build)
+    update_build_status(request, build)
     return HttpResponse("Benchmark hook")
 
 def details(request, build_id):
