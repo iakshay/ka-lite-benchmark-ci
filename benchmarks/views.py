@@ -101,11 +101,11 @@ def handle_pull_request(payload):
 
         build = BenchmarkBuild(**kwargs)
         build.save()
+        update_build_status(build)
     elif action == 'close':
         # todo - update pr_status of all builds
         pass
 
-    update_build_status(build)
 
 
 def github_hook(request):
