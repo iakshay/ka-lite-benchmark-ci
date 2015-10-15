@@ -41,13 +41,16 @@ class BenchmarkBuild(models.Model):
 
     def pretty_status(self):
         if self.ci_status == 'pending':
-            return ('pending', 'Waiting for %s to complete.' % self.ci_context)
+            return ('pending', 'Waiting for %s to complete build.' % self.ci_context)
 
         if self.ci_status == 'success':
-            if results:
+            if self.results:
                 return ('success', 'Benchmark has completed.')
             else:
                 return ('pending', 'Tests completed. Waiting for benchmarks')
+
+        if self.results:
+                return ('success', 'Benchmark has completed. %s' % self.results)
 
         if self.ci_status == 'failure':
             return ('failure', 'Tests failed,')
@@ -56,7 +59,7 @@ class BenchmarkBuild(models.Model):
             return ('error', 'Error running tests on %s.' % self.ci_context)
 
         if self.ci_status == 'undefined':
-            return ('pending', 'Waiting for %s to create builds.' % self.ci_context)
+            return ('pending', 'Waiting for CI to create builds.')
 
 class GithubToken(models.Model):
     owner = models.CharField(max_length=100)

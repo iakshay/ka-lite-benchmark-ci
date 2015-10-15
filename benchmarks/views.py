@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.core.urlresolvers import reverse
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect
 from django.conf import settings
 from .models import BenchmarkBuild, GithubToken
@@ -38,10 +38,7 @@ def index(request):
     return render(request, 'benchmarks/index.html', context)
 
 def update_build_status(request, build):
-    try:
-        token_user = GithubToken.objects.get(owner=build.owner_login)
-    except DoesNotExist:
-        return HttpResponse("No permissions for owner - {}", build.owner_login)
+    token_user = get_object_or_404(GithubToken, owner=build.owner_login)
 
     commit = Github(token_user.access_token).get_user().get_repo(build.pr_repo).get_commit(build.pr_sha)
     status, status_msg = build.pretty_status()
@@ -60,15 +57,12 @@ def handle_status(request):
     kwargs['owner_login'] = payload['repository']['owner']['login']
     kwargs['pr_sha'] = payload['commit']['sha']
 
-    try:
-        build = BenchmarkBuild.objects.get(**kwargs)
-    except DoesNotExist:
-        return HttpResponse("Benchmark build does not exist")
+    build = get_object_or_404(BenchmarkBuild, **kwargs)
 
-    if not build.ci_context:
+    if build.ci_context == 'undefined':
         build.ci_context = payload['context']
 
-    if not build.ci_context:
+    if not build.ci_build_uri:
         build.ci_build_uri = payload['target_url']
 
     build.ci_status = payload['state']
@@ -140,13 +134,11 @@ def benchmark_hook(request):
     payload = json.loads(request.body)
 
     kwargs = {}
-    kwargs['pr_sha'] = payload['sha']
-    kwargs['author_login'], kwargs['pr_repo'] = payload['repo'].split(':')
+    kwargs['pr_sha'] = payload['pr_sha']
+    kwargs['pr_branch'] = payload['pr_branch']
+    kwargs['author_login'] = payload['author_login']
 
-    try:
-        build = BenchmarkBuild.objects.get(**kwargs)
-    except DoesNotExist:
-        return HttpResponse("Benchmark build does not exist")
+    build = get_object_or_404(BenchmarkBuild, **kwargs)
 
     build.results = payload['results']
 
@@ -156,10 +148,7 @@ def benchmark_hook(request):
     return HttpResponse("Benchmark hook")
 
 def details(request, build_id):
-    try:
-        build = BenchmarkBuild.objects.get(id=build_id)
-    except DoesNotExist:
-        return HttpResponse("Benchmark build does not exist")
+    build = get_object_or_404(BenchmarkBuild, id=build_id)
     context = {'build': build}
     return render(request, 'benchmarks/details.html', context)
 
