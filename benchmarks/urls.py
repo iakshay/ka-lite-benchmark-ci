@@ -4,7 +4,7 @@ from . import views
 
 urlpatterns = [
     url(r'^$', views.index, name='index'),
-    url(r'^(?P<build_id>[0-9]+)$', views.build_details, name='details'),
+    url(r'^(?P<build_id>[0-9]+)$', views.details, name='details'),
     # status - Waiting for tests to complete
     url(r'^hooks/github$', views.github_hook, name='github_hook'),
 
