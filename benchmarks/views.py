@@ -131,16 +131,14 @@ def benchmark_hook(request):
     if request.method != 'POST':
         return HttpResponse('Invalid request')
 
-    payload = json.loads(request.body)
-
     kwargs = {}
-    kwargs['pr_sha'] = payload['pr_sha']
-    kwargs['pr_branch'] = payload['pr_branch']
-    kwargs['author_login'] = payload['author_login']
+    kwargs['pr_sha'] = request.POST['pr_sha']
+    kwargs['pr_branch'] = request.POST['pr_branch']
+    kwargs['author_login'] = request.POST['author_login']
 
     build = get_object_or_404(BenchmarkBuild, **kwargs)
 
-    build.results = payload['results']
+    build.results = request.POST['results']
 
     build.save()
 
