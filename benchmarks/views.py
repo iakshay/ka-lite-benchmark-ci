@@ -81,7 +81,7 @@ def handle_pull_request(payload):
     if action == 'opened' or action == 'synchronize':
         kwargs = {}
         kwargs['pr_number'] = payload['pull_request']['number']
-        kwargs['pr_status'] = payload['pull_request']['status']
+        kwargs['pr_status'] = payload['pull_request']['state']
         kwargs['pr_title'] = payload['pull_request']['title']
         kwargs['pr_body'] = payload['pull_request']['body']
 
@@ -115,7 +115,7 @@ def github_hook(request):
     if request.method != 'POST':
         return HttpResponse('Invalid request')
 
-    event = request.meta['X-GitHub-Event']
+    event = request.META.get('HTTP_X_GITHUB_EVENT')
     payload = json.loads(request.body)
 
     if event is 'pull_request':

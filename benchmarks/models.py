@@ -33,7 +33,8 @@ class BenchmarkBuild(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return 'Build {0} <{1}>'.format(self.id, self.sha)
+        return 'Build {0} from {1}/{2}/pulls/{3}'.format(self.id,
+                self.owner_login, self.base_repo, self.pr_number)
 
     def url(self):
         return reverse('details', args=[str(self.id)])
