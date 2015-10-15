@@ -27,14 +27,12 @@ def index(request):
     else:
         code = request.GET['code']
         body = client.prepare_request_body(code=code)
-        response = requests.post(REQUEST_TOKEN_URL, body)
-        # todo - use accept headers
-        params = extract_params(response.text)
-        access_token = params[0][1]
-        scope = params[1][1]
-        owner = Github(access_token).get_user()
+        headers = {'Accept': 'application/json'}
+        response = requests.post(REQUEST_TOKEN_URL, body, headers=headers)
+        response = response.json()
+        owner = Github(response['access_token']).get_user()
         # todo - check if user already exists => show repo settings
-        token = GithubToken(owner=owner.login, access_token=access_token, scope=scope)
+        token = GithubToken(owner=owner.login, access_token=response['access_token'], scope=response['scope'])
         token.save()
         context = {'owner': owner.name}
     return render(request, 'benchmarks/index.html', context)
