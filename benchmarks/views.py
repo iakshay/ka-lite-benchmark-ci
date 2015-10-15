@@ -34,7 +34,7 @@ def index(request):
         scope = params[1][1]
         owner = Github(access_token).get_user()
         # todo - check if user already exists => show repo settings
-        token = GithubToken(owner=owner, access_token=access_token, scope=scope)
+        token = GithubToken(owner=owner.login, access_token=access_token, scope=scope)
         token.save()
         context = {'owner': owner.name}
     return render(request, 'benchmarks/index.html', context)
