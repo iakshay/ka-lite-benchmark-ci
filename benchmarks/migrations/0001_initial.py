@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('owner', models.CharField(max_length=100)),
-                ('repo', models.CharField(max_length=100)),
+                ('access_token', models.CharField(max_length=250)),
                 ('scope', models.CharField(max_length=100)),
             ],
         ),
