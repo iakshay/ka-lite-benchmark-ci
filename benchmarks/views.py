@@ -11,11 +11,6 @@ import json
 import os
 import requests
 
-TESTS_WAITING = 0
-TESTS_SUCCESS = 1
-TESTS_FAIL = 2
-BENCHMARK_SUCCESS = 3
-
 REQUEST_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 AUTHORIZATION_URL = 'https://github.com/login/oauth/authorize'
 
@@ -24,6 +19,8 @@ def index(request):
     client = WebApplicationClient(settings.GITHUB_CLIENT_ID)
 
     if not request.GET.has_key('code'):
+        # todo - also setup hook for repo
+        # todo - check http referrer = 'https://github.com/'
         uri = client.prepare_request_uri(AUTHORIZATION_URL, redirect_uri=request.build_absolute_uri(reverse('index')),
                                    scope=['repo'])
         context = {'uri': uri}
@@ -31,55 +28,87 @@ def index(request):
         code = request.GET['code']
         body = client.prepare_request_body(code=code)
         response = requests.post(REQUEST_TOKEN_URL, body)
+        # todo - use accept headers
         params = extract_params(response.text)
         access_token = params[0][1]
         scope = params[1][1]
         owner = Github(access_token).get_user()
-        token = GithubToken(owner=owner.login, access_token=access_token)
+        # todo - check if user already exists => show repo settings
+        token = GithubToken(owner=owner.login, access_token=access_token, scope=scope)
         token.save()
         context = {'owner': owner.name}
     return render(request, 'benchmarks/index.html', context)
 
 def update_build_status(build):
-    owner, repo = build.repo.split('/')
     try:
-        token_user = GithubToken.objects.get(owner=owner)
+        token_user = GithubToken.objects.get(owner=owner_login)
     except DoesNotExist:
         return HttpResponse("No permissions for owner - {}", owner)
 
-    commit = Github(token_user.access_token).get_user().get_repo(repo).get_commit(build.sha)
-    commit.create_status(build.github_status(), description=build.pretty_status(), target_url=build.url(),
+    commit = Github(token_user.access_token).get_user().get_repo(build.pr_repo).get_commit(build.pr_sha)
+    status, status_msg = build.pretty_status()
+    commit.create_status(status, description=status_msg, target_url=build.url(),
                          context=settings.GITHUB_CI_CONTEXT)
 
 
 def handle_status(payload):
     # todo - check if this is circleci or travis
     # ci/circleci
+    kwargs = {}
+    kwargs['base_repo'] = payload['repository']['name']
+    kwargs['owner_login'] = payload['repository']['owner']['login']
+    kwargs['pr_sha'] = payload['commit']['sha']
+
     try:
-        build = BenchmarkBuild.objects.get(sha=payload['sha'], repo=payload['name'])
+        build = BenchmarkBuild.objects.get(**kwargs)
     except DoesNotExist:
         return HttpResponse("Benchmark build does not exist")
 
-    if payload['state'] == 'failure' or payload['state'] == 'error':
-        build.status = TESTS_FAIL
-    elif payload['status'] == 'pending':
-        build.status = TESTS_WAITING
-    elif payload['status'] == 'success':
-        build.status = TESTS_SUCCESS
+    if not build.ci_context:
+        build.ci_context = payload['context']
+
+    if not build.ci_context:
+        build.ci_build_uri = payload['target_url']
+
+    build.ci_status = payload['state']
 
     build.save()
     update_build_status(build)
 
+
 def handle_pull_request(payload):
     action = payload['action']
 
+    # create new build object
     if action == 'opened' or action == 'synchronize':
-        sha = payload['pull_request']['head']['sha']
-        repo = payload['pull_request']['repo']['full_name']
-        build = BenchmarkBuild(sha=sha, repo=repo, status=TESTS_WAITING)
+        kwargs = {}
+        kwargs['pr_number'] = payload['pull_request']['number']
+        kwargs['pr_status'] = payload['pull_request']['status']
+        kwargs['pr_title'] = payload['pull_request']['title']
+        kwargs['pr_body'] = payload['pull_request']['body']
+
+        kwargs['pr_branch'] = payload['pull_request']['head']['ref']
+        kwargs['pr_repo'] = payload['pull_request']['head']['repo']['name']
+        kwargs['pr_sha'] = payload['pull_request']['head']['sha']
+
+        kwargs['author_id'] = payload['pull_request']['head']['user']['id']
+        kwargs['author_login'] = payload['pull_request']['head']['user']['login']
+
+        kwargs['owner_id'] = payload['repository']['owner']['id']
+        kwargs['owner_login'] = payload['repository']['owner']['login']
+
+        kwargs['base_repo'] = payload['pull_request']['base']['repo']['name']
+        kwargs['base_branch'] = payload['pull_request']['base']['ref']
+        kwargs['base_sha'] = payload['pull_request']['base']['sha']
+
+        build = BenchmarkBuild(**kwargs)
         build.save()
+    elif action == 'close':
+        # todo - update pr_status of all builds
+        pass
 
     update_build_status(build)
+
 
 def github_hook(request):
     """
@@ -109,20 +138,27 @@ def benchmark_hook(request):
 
     payload = json.loads(request.body)
 
-    sha = payload['sha']
-    repo = payload['repo']
-    results = payload['results']
+    kwargs = {}
+    kwargs['pr_sha'] = payload['sha']
+    kwargs['author_login'], kwargs['pr_repo'] = payload['repo'].split(':')
 
     try:
-        build = BenchmarkBuild.objects.get(sha=sha, repo=repo)
+        build = BenchmarkBuild.objects.get(**kwargs)
     except DoesNotExist:
         return HttpResponse("Benchmark build does not exist")
 
-    build.status = BENCHMARK_SUCCESS
-    build.results = results
+    build.results = payload['results']
 
     build.save()
 
     update_build_status(build)
     return HttpResponse("Benchmark hook")
+
+def details(request, build_id):
+    try:
+        build = BenchmarkBuild.objects.get(id=build_id)
+    except DoesNotExist:
+        return HttpResponse("Benchmark build does not exist")
+    context = {'build': build}
+    return render(request, 'benchmarks/details.html', context)
 
