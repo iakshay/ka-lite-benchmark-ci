@@ -39,9 +39,9 @@ def index(request):
 
 def update_build_status(build):
     try:
-        token_user = GithubToken.objects.get(owner=owner_login)
+        token_user = GithubToken.objects.get(owner=build.owner_login)
     except DoesNotExist:
-        return HttpResponse("No permissions for owner - {}", owner)
+        return HttpResponse("No permissions for owner - {}", build.owner_login)
 
     commit = Github(token_user.access_token).get_user().get_repo(build.pr_repo).get_commit(build.pr_sha)
     status, status_msg = build.pretty_status()
@@ -118,12 +118,11 @@ def github_hook(request):
     event = request.META.get('HTTP_X_GITHUB_EVENT')
     payload = json.loads(request.body)
 
-    if event is 'pull_request':
+    if event == 'pull_request':
         handle_pull_request(payload)
-    elif event is 'status':
+    elif event == 'status':
         handle_status(payload)
 
-    # if event is status:
     return HttpResponse("Github hook")
 
 

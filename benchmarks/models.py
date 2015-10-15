@@ -17,7 +17,7 @@ class BenchmarkBuild(models.Model):
     author_login = models.CharField(max_length=100)
     author_id = models.CharField(max_length=100)
 
-    ci_status = models.CharField(max_length=100)
+    ci_status = models.CharField(max_length=100, default='undefined')
     ci_context = models.CharField(max_length=100)
     ci_build_uri = models.CharField(max_length=100)
 
@@ -40,20 +40,23 @@ class BenchmarkBuild(models.Model):
         return reverse('details', args=[str(self.id)])
 
     def pretty_status(self):
-        if self.ci_status is 'pending':
+        if self.ci_status == 'pending':
             return ('pending', 'Waiting for %s to complete.' % self.ci_context)
 
-        if self.ci_status is 'success':
+        if self.ci_status == 'success':
             if results:
                 return ('success', 'Benchmark has completed.')
             else:
                 return ('pending', 'Tests completed. Waiting for benchmarks')
 
-        if self.ci_status is 'failure':
+        if self.ci_status == 'failure':
             return ('failure', 'Tests failed,')
 
-        if self.ci_status is 'error':
+        if self.ci_status == 'error':
             return ('error', 'Error running tests on %s.' % self.ci_context)
+
+        if self.ci_status == 'undefined':
+            return ('pending', 'Waiting for %s to create builds.' % self.ci_context)
 
 class GithubToken(models.Model):
     owner = models.CharField(max_length=100)
