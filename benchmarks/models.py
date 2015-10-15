@@ -56,5 +56,5 @@ class BenchmarkBuild(models.Model):
 
 class GithubToken(models.Model):
     owner = models.CharField(max_length=100)
-    repo = models.CharField(max_length=100)
+    access_token = models.CharField(max_length=250)
     scope = models.CharField(max_length=100)
