@@ -50,8 +50,9 @@ def update_build_status(build):
 
 
 def handle_status(payload):
-    # todo - check if this is circleci or travis
-    # ci/circleci
+    if payload['ci_status'] == settings.GITHUB_CI_CONTEXT:
+        return
+
     kwargs = {}
     kwargs['base_repo'] = payload['repository']['name']
     kwargs['owner_login'] = payload['repository']['owner']['login']
