@@ -26,7 +26,7 @@ def index(request):
         context = {'uri': uri}
     else:
         code = request.GET['code']
-        body = client.prepare_request_body(code=code)
+        body = client.prepare_request_body(code=code, client_secret=settings.GITHUB_CLIENT_SECRET)
         headers = {'Accept': 'application/json'}
         response = requests.post(REQUEST_TOKEN_URL, body, headers=headers)
         response = response.json()
