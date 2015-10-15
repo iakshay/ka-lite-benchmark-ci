@@ -51,7 +51,8 @@ def update_build_status(request, build):
 
 def handle_status(request):
     payload = json.loads(request.body)
-    if payload['ci_status'] == settings.GITHUB_CI_CONTEXT:
+
+    if payload['context'] == settings.GITHUB_CI_CONTEXT:
         return
 
     kwargs = {}
